@@ -2,3 +2,6 @@
 .idea
 .env
 database.db
+doloro_web/package-lock.json
+doloro_web/node_modules
+doloro_web/yarn.lock

@@ -50,6 +50,24 @@ pub enum PishockShockResponse {
     InternalServerError(Json<String>),
 }
 
+#[derive(ApiResponse)]
+pub enum PishockVibrateResponse {
+    #[oai(status = 200)]
+    Ok(PlainText<String>),
+    #[oai(status = 400)]
+    BadRequest(Json<String>),
+    #[oai(status = 404)]
+    NotFound(Json<String>),
+    #[oai(status = 500)]
+    InternalServerError(Json<String>),
+}
+
+#[derive(Object)]
+pub struct PishockVibrateRequest {
+    intensity: i32,
+    duration: i32,
+}
+
 #[derive(Object)]
 pub struct PishockShockRequest {
     intensity: i32,
@@ -170,6 +188,38 @@ impl Api {
             },
             Err(e) => {
                 Ok(PishockShockResponse::BadRequest(Json(e.to_string())))
+            }
+        }
+    }
+
+    #[oai(path = "/pishock/:shockerid/vibrate", method = "post")]
+    pub async fn pishock_execute_vibrate(&self, shockerid: Path<i32>, vibraterequest: Json<PishockVibrateRequest>) -> Result<PishockVibrateResponse> {
+        use crate::schema::pishock_devices::dsl::pishock_devices;
+
+        let conn = &mut establish_connection();
+
+        println!("Getting PiShock device with id: {}...", shockerid.0);
+        let pishock_db = pishock_devices.find(shockerid.0).load::<PishockDevice>(conn).map_err(InternalServerError)?;
+        if pishock_db.is_empty() {
+            return Ok(PishockVibrateResponse::NotFound(Json("No device found with that ID".to_string())));
+        }
+
+        // Get PiShock credentials from env
+        let pishock_username = std::env::var("PISHOCK_USERNAME").map_err(InternalServerError)?;
+        let pishock_apikey = std::env::var("PISHOCK_APIKEY").map_err(InternalServerError)?;
+
+        let pishock_instance = pishock_rs::PiShockAccount::new("Doloro Server", pishock_username.as_str(), pishock_apikey.as_str());
+
+        let pishocker = pishock_instance.get_shocker(pishock_db[0].sharecode.clone()).await.unwrap();
+
+        let vibrateresponse = pishocker.vibrate(vibraterequest.intensity as u32, Duration::from_millis(vibraterequest.duration as u64)).await;
+
+        match vibrateresponse {
+            Ok(_) => {
+                Ok(PishockVibrateResponse::Ok(PlainText("Vibrate executed successfully".to_string())))
+            },
+            Err(e) => {
+                Ok(PishockVibrateResponse::BadRequest(Json(e.to_string())))
             }
         }
     }
