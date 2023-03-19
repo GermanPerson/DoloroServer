@@ -1,32 +1,30 @@
 <template>
-    <v-container>
-        <v-row>
-            <v-col cols="12" sm="6" md="4" v-for="shocker in shockerList" :key="shocker.id">
-                <PiShockerCard :shockerid="shocker.id" />
+    <v-container fluid>
+        <v-row dense>
+            <v-col cols="12" sm="4" md="4">
+                <PiShockerCard v-for="shocker in pishockStore.shocker_list" :shockerid="shocker.id" :key="shocker.id" />
             </v-col>
         </v-row>
     </v-container>
 </template>
 
 <script>
-import {get_shocker_list} from "@/plugins/pishock";
 import PiShockerCard from "@/components/PiShockerCard.vue";
+import {usePishockStore} from "@/plugins/pishock_store";
 
 export default {
     name: "PiShockerList",
     components: {PiShockerCard},
-    data: function() {
+    setup() {
+        // load pishock store
+        const pishockStore = usePishockStore();
         return {
-            shockerList: [],
-            loading: true,
+            pishockStore
         };
     },
-    mounted() {
-        get_shocker_list().then((response) => {
-            this.shockerList = response;
-            this.loading = false;
-        });
-    }
+    async mounted() {
+        await this.pishockStore.update_shocker_list();
+    },
 }
 </script>
 

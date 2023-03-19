@@ -18,9 +18,15 @@ enum PishockListResponse {
 }
 
 #[derive(ApiResponse)]
-enum PishockCreateResponse {
+pub enum PishockCreateResponse {
     #[oai(status = 200)]
-    Ok(Json<NewPishock>),
+    Ok(Json<PishockDevice>),
+
+    #[oai(status = 400)]
+    BadRequest(Json<String>),
+
+    #[oai(status = 500)]
+    InternalServerError(Json<String>),
 }
 
 #[derive(Object)]
@@ -75,6 +81,7 @@ pub struct PishockShockRequest {
     warn: bool
 }
 
+
 pub struct Api;
 
 #[OpenApi]
@@ -91,10 +98,20 @@ impl Api {
     }
 
     #[oai(path = "/pishock/create", method = "post")]
-    pub async fn pishock_device_create(&self, device: Json<NewPishock>) -> Result<Json<PishockDevice>, poem::Error> {
+    pub async fn pishock_device_create(&self, device: Json<NewPishock>) -> Result<PishockCreateResponse> {
         use crate::schema::pishock_devices::dsl::pishock_devices;
 
         let conn = &mut establish_connection();
+
+        // Check that no device with this sharecode already exists
+        let result = pishock_devices
+            .filter(crate::schema::pishock_devices::sharecode.eq(device.sharecode.clone()))
+            .first::<PishockDevice>(conn)
+            .optional()
+            .expect("DB conn failed");
+        if result.is_some() {
+            return Ok(PishockCreateResponse::BadRequest(Json("Device with this sharecode already exists".to_string())));
+        }
 
         // Get PiShock credentials from env
         let pishock_username = std::env::var("PISHOCK_USERNAME").map_err(InternalServerError)?;
@@ -121,7 +138,7 @@ impl Api {
                     .execute(conn)
                     .expect("DB conn failed");
 
-                Ok(Json(new_pishock))
+                Ok(PishockCreateResponse::Ok(Json(new_pishock)))
             },
             Err(e) => {
                 println!("Error: {}", e);
@@ -137,7 +154,6 @@ impl Api {
 
         let conn = &mut establish_connection();
 
-        println!("Getting PiShock device with id: {}...", shockerid.0);
         let result = pishock_devices.find(shockerid.0).load::<PishockDevice>(conn);
 
         match result {
@@ -162,7 +178,6 @@ impl Api {
 
         let conn = &mut establish_connection();
 
-        println!("Getting PiShock device with id: {}...", shockerid.0);
         let pishock_db = pishock_devices.find(shockerid.0).load::<PishockDevice>(conn).map_err(InternalServerError)?;
         if pishock_db.is_empty() {
             return Ok(PishockShockResponse::NotFound(Json("No device found with that ID".to_string())));

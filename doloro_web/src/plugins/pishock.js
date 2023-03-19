@@ -1,21 +1,29 @@
 export async function get_shocker_list() {
     return fetch(window.baseURL + "/api/pishock/list")
-        .then(response => response.json())
-        .then(data => {
+        .then(async response => {
+            if (response.status !== 200) {
+                let msg = await response.json();
+                throw new Error(msg);
+            }
+            return response.json()
+        }).then(data => {
             return data
         })
         .catch(error => {
+            this.$toast.error(error)
             console.error(error)
         })
 }
 
-export async function create_shocker(shocker) {
+export async function create_shocker(sharecode) {
     return fetch(window.baseURL + "/api/pishock/create", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(shocker)
+        body: JSON.stringify({
+            sharecode: sharecode
+        })
     })
         .then(response => response.json())
         .then(data => {

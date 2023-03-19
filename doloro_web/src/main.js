@@ -14,9 +14,14 @@ import { createApp } from 'vue'
 // Plugins
 import { registerPlugins } from '@/plugins'
 import ToastPlugin from "vue-toast-notification";
+import {createPinia} from "pinia";
 
 
 const app = createApp(App)
+
+const pinia = createPinia()
+app.use(pinia)
+
 
 registerPlugins(app)
 
